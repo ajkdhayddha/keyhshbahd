@@ -1,10 +1,15 @@
 import fs from "fs";
 import path from "path";
 
+// Caminho do arquivo keys.json na raiz
 const filePath = path.join(process.cwd(), "keys.json");
 
 function loadKeys() {
-  try { return JSON.parse(fs.readFileSync(filePath)); } catch { return {}; }
+  try {
+    return JSON.parse(fs.readFileSync(filePath));
+  } catch {
+    return {};
+  }
 }
 
 function saveKeys(keys) {
@@ -12,15 +17,29 @@ function saveKeys(keys) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Use POST" });
-  let body = req.body;
-  if (typeof body === "string") body = JSON.parse(body);
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Use POST" });
+  }
 
-  const { key, lifetime } = body; // lifetime em segundos (ex: 7200 para 2 horas)
-  if (!key || !lifetime) return res.status(400).json({ error: "Faltando dados" });
+  // Lê o corpo corretamente seja JSON ou string
+  let body;
+  try {
+    body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+  } catch (e) {
+    return res.status(400).json({ error: "JSON inválido" });
+  }
 
-  const expiresAt = Math.floor(Date.now() / 1000) + Number(lifetime);
+  const key = body?.key;
+  const lifetime = Number(body?.lifetime);
 
+  if (!key || !lifetime || isNaN(lifetime) || lifetime < 1) {
+    return res.status(400).json({ error: "Envie key e lifetime (segundos > 0)" });
+  }
+
+  // Calcula timestamp de expiração (em segundos unix)
+  const expiresAt = Math.floor(Date.now() / 1000) + lifetime;
+
+  // Salva no JSON
   const keys = loadKeys();
   keys[key] = { expiresAt };
   saveKeys(keys);
